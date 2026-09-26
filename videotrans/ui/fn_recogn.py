@@ -65,8 +65,13 @@ class Ui_fn_recogn(QtWidgets.QWidget):
         self.nums_diariz.setToolTip(tr("Specifying the number of speakers"))
         self.nums_diariz.addItems([tr("No limit"),"2","3","4","5","6","7","8","9","10"])
 
-
-
+        # 双轨通话：两路音频分别代表我/对方，无需说话人聚类
+        self.dual_track_call = QtWidgets.QCheckBox()
+        self.dual_track_call.setText("双轨通话")
+        self.dual_track_call.setToolTip("两个独立音轨，或一个立体声音轨的左右声道分别是两个人")
+        self.me_track = QtWidgets.QComboBox()
+        self.me_track.addItems(["轨道1=我", "轨道2=我"])
+        self.me_track.setToolTip("选择哪一路声音是你本人")
 
         self.out_format = QtWidgets.QComboBox()
         self.out_format.setMinimumSize(QtCore.QSize(100, 35))
@@ -126,6 +131,8 @@ class Ui_fn_recogn(QtWidgets.QWidget):
         self.h4.addWidget(self.shibie_stop)
         self.h4.addWidget(self.fix_punc)
         self.h4.addWidget(self.rephrase)
+        self.h4.addWidget(self.dual_track_call)
+        self.h4.addWidget(self.me_track)
 
         self.h4.addWidget(self.enable_diariz)
         self.h4.addWidget(self.nums_diariz)
