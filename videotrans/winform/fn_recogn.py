@@ -88,8 +88,10 @@ def openwin():
         winobj.remove_noise.setDisabled(state)
         winobj.fix_punc.setDisabled(state)
         winobj.copysrt_rawvideo.setDisabled(state)
-        winobj.enable_diariz.setDisabled(state)
-        winobj.nums_diariz.setDisabled(state)
+        winobj.enable_diariz.setDisabled(state or winobj.dual_track_call.isChecked())
+        winobj.nums_diariz.setDisabled(state or winobj.dual_track_call.isChecked())
+        winobj.dual_track_call.setDisabled(state)
+        winobj.me_track.setDisabled(state or not winobj.dual_track_call.isChecked())
         winobj.spk_insert.setDisabled(state)
         winobj.shibie_stop.setDisabled(not state)
 
@@ -133,7 +135,8 @@ def openwin():
                 get_win(name)
                 return
 
-        enable_diariz_is = winobj.enable_diariz.isChecked()
+        dual_track_call = winobj.dual_track_call.isChecked()
+        enable_diariz_is = winobj.enable_diariz.isChecked() and not dual_track_call
 
         toggle_state(True)
         winobj.shibie_startbtn.setText(tr("running"))
@@ -163,7 +166,9 @@ def openwin():
                     "enable_diariz": enable_diariz_is,
                     "nums_diariz": nums_diariz,
                     "rephrase": stt_rephrase,
-                    "fix_punc": fix_punc
+                    "fix_punc": fix_punc,
+                    "dual_track_call": dual_track_call,
+                    "me_track": winobj.me_track.currentIndex() + 1
                 }
                 from videotrans.task.speech2text import SpeechToText
                 trk = SpeechToText(cfg=TaskCfgSTT(**cfg | it),
@@ -184,6 +189,8 @@ def openwin():
             params["stt_copysrt_rawvideo"] = winobj.copysrt_rawvideo.isChecked()
             params["stt_enable_diariz"] = enable_diariz_is
             params["stt_nums_diariz"] = nums_diariz
+            params["stt_dual_track_call"] = dual_track_call
+            params["stt_me_track"] = winobj.me_track.currentIndex() + 1
             params["stt_spk_insert"] = spk_insert
             params["stt_rephrase"] = stt_rephrase
             params["stt_fix_punc"] = fix_punc
@@ -285,6 +292,9 @@ def openwin():
         winobj.copysrt_rawvideo.setChecked(params.get('stt_copysrt_rawvideo', False))
         winobj.spk_insert.setChecked(bool(params.get('stt_spk_insert', True)))
         winobj.enable_diariz.setChecked(bool(params.get('stt_enable_diariz', False)))
+        winobj.dual_track_call.setChecked(bool(params.get('stt_dual_track_call', False)))
+        winobj.me_track.setCurrentIndex(max(0, min(1, int(params.get('stt_me_track', 1)) - 1)))
+        winobj.me_track.setDisabled(not winobj.dual_track_call.isChecked())
         winobj.fix_punc.setCurrentIndex(int(params.get('stt_fix_punc', 0)))
         winobj.nums_diariz.setCurrentIndex(int(params.get("stt_nums_diariz", 0)))
         winobj.out_format.setCurrentText(params.get('stt_out_format', 'srt'))
@@ -293,6 +303,17 @@ def openwin():
         winobj.shibie_stop.clicked.connect(stop_recogn)
         winobj.shibie_opendir.clicked.connect(opendir_fn)
         winobj.is_cuda.toggled.connect(check_cuda)
+
+        def dual_track_changed(checked):
+            winobj.me_track.setDisabled(not checked)
+            winobj.enable_diariz.setDisabled(checked)
+            winobj.nums_diariz.setDisabled(checked)
+            if checked:
+                winobj.enable_diariz.setChecked(False)
+                winobj.spk_insert.setChecked(True)
+
+        winobj.dual_track_call.toggled.connect(dual_track_changed)
+        dual_track_changed(winobj.dual_track_call.isChecked())
 
         default_lang = int(params.get('stt_source_language', 0))
         winobj.shibie_language.setCurrentIndex(default_lang)
