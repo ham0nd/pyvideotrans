@@ -84,7 +84,7 @@ def openwin():
         winobj.shibie_opendir.setDisabled(state)
         winobj.shibie_startbtn.setDisabled(state)
         winobj.shibie_dropbtn.setDisabled(state)
-        winobj.rephrase.setDisabled(state)
+        winobj.rephrase.setDisabled(state or winobj.dual_track_call.isChecked())
         winobj.remove_noise.setDisabled(state)
         winobj.fix_punc.setDisabled(state)
         winobj.copysrt_rawvideo.setDisabled(state)
