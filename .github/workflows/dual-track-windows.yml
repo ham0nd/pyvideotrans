@@ -1,0 +1,114 @@
+name: Build Dual-Track Windows Portable
+
+on:
+  push:
+    branches:
+      - feature/dual-track-call
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: Install Python 3.10
+        run: uv python install 3.10
+
+      - name: Static syntax check
+        shell: pwsh
+        run: uv run --python 3.10 python -m compileall -q videotrans/task/taskcfg.py videotrans/task/speech2text.py videotrans/ui/fn_recogn.py videotrans/winform/fn_recogn.py videotrans/util/_dual_track.py
+
+      - name: Install application dependencies
+        shell: pwsh
+        run: uv sync --python 3.10 --frozen
+
+      - name: Import smoke check
+        shell: pwsh
+        run: |
+          uv run python -c "from videotrans.task.taskcfg import TaskCfgSTT; c=TaskCfgSTT(dual_track_call=True, me_track=2); assert c.dual_track_call and c.me_track == 2"
+          uv run python -c "from videotrans.util._dual_track import probe_dual_track, extract_dual_track_16k; print('dual-track imports OK')"
+          uv run python -c "from videotrans.task.speech2text import SpeechToText; print('SpeechToText import OK')"
+
+      - name: Create portable launcher
+        shell: pwsh
+        run: |
+          @'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          def main():
+              root = Path(sys.executable).resolve().parent
+              pythonw = root / ".venv" / "Scripts" / "pythonw.exe"
+              app = root / "sp.py"
+              if not pythonw.exists():
+                  raise SystemExit(f"Missing portable Python: {pythonw}")
+              if not app.exists():
+                  raise SystemExit(f"Missing application entry: {app}")
+              creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+              subprocess.Popen([str(pythonw), str(app)], cwd=str(root), creationflags=creationflags, close_fds=True)
+
+          if __name__ == "__main__":
+              main()
+          '@ | Set-Content -Encoding UTF8 portable_launcher.py
+
+          uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon videotrans/styles/icon.ico --distpath launcher-dist --workpath launcher-build --specpath launcher-build
+
+      - name: Assemble portable directory
+        shell: pwsh
+        run: |
+          $dest = "portable/pyVideoTrans-DualTrack"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "launcher-dist/pyVideoTrans-DualTrack.exe" $dest
+          Copy-Item "sp.py" $dest
+          Copy-Item "cli.py" $dest
+          Copy-Item "webui.py" $dest
+          Copy-Item "pyproject.toml" $dest
+          Copy-Item "uv.lock" $dest
+          Copy-Item "videotrans" $dest -Recurse
+          if (Test-Path "ffmpeg") { Copy-Item "ffmpeg" $dest -Recurse }
+          Copy-Item ".venv" "$dest/.venv" -Recurse
+
+          @'
+          双轨通话魔改版
+          ==============
+
+          启动：双击 pyVideoTrans-DualTrack.exe
+
+          使用：
+          1. 打开“语音识别”窗口
+          2. 选择通话录音
+          3. 勾选“双轨通话”
+          4. 选择“轨道1=我”或“轨道2=我”
+          5. 建议勾选“插入说话人”
+          6. 开始识别
+
+          支持两个独立 Audio Stream，或单个 Stereo/多声道音轨的前两个声道。
+          双轨模式会分别识别两路、按原时间戳合并，并输出 [我] / [对方]。
+          '@ | Set-Content -Encoding UTF8 "$dest/双轨通话说明.txt"
+
+      - name: Package portable build
+        shell: pwsh
+        run: 7z a -t7z -mx=5 -m0=lzma2 -ms=on -v1800m pyVideoTrans-DualTrack-Windows-v4.14.7z .\portable\pyVideoTrans-DualTrack\*
+
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyVideoTrans-DualTrack-Windows-v4.14
+          path: pyVideoTrans-DualTrack-Windows-v4.14.7z.*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
