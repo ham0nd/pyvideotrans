@@ -139,6 +139,8 @@ class TaskCfgSTT(TaskCfgBase):
     nums_diariz: int = 0  # 是否进行说话人识别
     rephrase: bool = False  # 0 默认断句不处理 1=LLM重新断句
     fix_punc: int = 0  # 0=默认，1=恢复标点符号，2=移除所有标点
+    dual_track_call: bool = False  # 双轨通话：两路音频分别代表“我/对方”
+    me_track: int = 1  # 双轨模式下哪一路是“我”：1 或 2
 
     def __repr__(self):
         from videotrans.recognition import ALLOW_CHANGE_MODEL
@@ -146,7 +148,9 @@ class TaskCfgSTT(TaskCfgBase):
         from videotrans.configure.config import tr, app_cfg
         _msg = [f'[TaskCfgSTT]', f'原始输入文件名: {self.name}, \n输出结果保存到文件夹: {self.target_dir},\n临时文件夹: {self.cache_folder}',
                 f'{"已" if self.is_cuda else "未"}启用CUDA加速', f'{isTrue[self.remove_noise]} 降噪']
-        if self.enable_diariz:
+        if self.dual_track_call:
+            _msg.append(f'已选 双轨通话模式，第 {self.me_track} 路为“我”')
+        elif self.enable_diariz:
             _msg.append(f'已选 识别说话人，最大说话人数量{"不限制" if self.nums_diariz < 1 else self.nums_diariz + 1}')
         if self.fix_punc > 0:
             _msg.append(f'{"已选 恢复标点符号" if self.fix_punc == 1 else "已选 删除所有标点符号"}')
