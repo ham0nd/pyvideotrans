@@ -142,7 +142,8 @@ def openwin():
         winobj.shibie_startbtn.setText(tr("running"))
         winobj.label_shibie10.setText('')
         winobj.shibie_text.clear()
-        stt_rephrase = winobj.rephrase.isChecked()
+        # 双轨模式必须保留每条字幕原始时间轴与轨道身份，暂不启用 LLM 重新断句
+        stt_rephrase = winobj.rephrase.isChecked() and not dual_track_call
         settings.save()
         from videotrans.util.help_ffmpeg import format_video
         try:
@@ -308,7 +309,9 @@ def openwin():
             winobj.me_track.setDisabled(not checked)
             winobj.enable_diariz.setDisabled(checked)
             winobj.nums_diariz.setDisabled(checked)
+            winobj.rephrase.setDisabled(checked)
             if checked:
+                winobj.rephrase.setChecked(False)
                 winobj.enable_diariz.setChecked(False)
                 winobj.spk_insert.setChecked(True)
 
