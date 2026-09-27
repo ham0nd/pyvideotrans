@@ -49,6 +49,8 @@ def main():
     env = os.environ.copy()
     env["PYTHONPATH"] = str(site_packages)
     env["PYTHONUTF8"] = "1"
+    ffmpeg_dir = root / "tools" / "ffmpeg"
+    env["PATH"] = str(root) + os.pathsep + str(ffmpeg_dir) + os.pathsep + env.get("PATH", "")
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.Popen(
         [str(pythonw), str(app)],
@@ -73,7 +75,27 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Copy-Item "launcher-dist/pyVideoTrans-DualTrack.exe" $dest
 Copy-Item "sp.py","cli.py","webui.py","pyproject.toml","uv.lock" $dest
 Copy-Item "videotrans" $dest -Recurse
-if (Test-Path "ffmpeg") { Copy-Item "ffmpeg" $dest -Recurse }
+
+# Bundle ffmpeg + ffprobe. Dual-track probing requires ffprobe.
+$ffmpegDir = Join-Path $dest "tools/ffmpeg"
+New-Item -ItemType Directory -Force -Path $ffmpegDir | Out-Null
+
+$ffmpegCmd = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
+$ffprobeCmd = Get-Command ffprobe.exe -ErrorAction SilentlyContinue
+
+if ($ffmpegCmd -and $ffprobeCmd) {
+    Copy-Item $ffmpegCmd.Source (Join-Path $ffmpegDir "ffmpeg.exe")
+    Copy-Item $ffprobeCmd.Source (Join-Path $ffmpegDir "ffprobe.exe")
+    Write-Host "Bundled FFmpeg from PATH: $($ffmpegCmd.Source)"
+} elseif (Test-Path "ffmpeg/bin/ffmpeg.exe" -and Test-Path "ffmpeg/bin/ffprobe.exe") {
+    Copy-Item "ffmpeg/bin/ffmpeg.exe" (Join-Path $ffmpegDir "ffmpeg.exe")
+    Copy-Item "ffmpeg/bin/ffprobe.exe" (Join-Path $ffmpegDir "ffprobe.exe")
+} elseif (Test-Path "ffmpeg.exe" -and Test-Path "ffprobe.exe") {
+    Copy-Item "ffmpeg.exe" (Join-Path $ffmpegDir "ffmpeg.exe")
+    Copy-Item "ffprobe.exe" (Join-Path $ffmpegDir "ffprobe.exe")
+} else {
+    throw "FFmpeg/FFprobe not found. Install FFmpeg first (winget install --id Gyan.FFmpeg -e), reopen PowerShell, then rerun this build script."
+}
 
 # Bundle the real managed CPython runtime. Do not copy .venv as the runtime:
 # Windows venv python.exe contains an absolute redirect to its base interpreter.
@@ -101,7 +123,10 @@ Set-Content -Path (Join-Path $dest "双轨通话说明.txt") -Value $note -Encod
 Write-Host "[7/7] Verifying final portable runtime..."
 $root = (Resolve-Path $dest).Path
 $env:PYTHONPATH = Join-Path $root "site-packages"
+$env:PATH = (Join-Path $root "tools/ffmpeg") + ";" + $env:PATH
 $py = Join-Path $root "runtime/python.exe"
+& (Join-Path $root "tools/ffmpeg/ffmpeg.exe") -version | Select-Object -First 1
+& (Join-Path $root "tools/ffmpeg/ffprobe.exe") -version | Select-Object -First 1
 & $py -c "import PySide6; print('PySide6 portable import OK')"
 & $py -c "from videotrans.task.taskcfg import TaskCfgSTT; c=TaskCfgSTT(dual_track_call=True, me_track=1); assert c.dual_track_call"
 & $py -c "from videotrans.util._dual_track import probe_dual_track, extract_dual_track_16k; print('dual-track portable import OK')"
