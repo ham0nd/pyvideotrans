@@ -87,10 +87,10 @@ if ($ffmpegCmd -and $ffprobeCmd) {
     Copy-Item $ffmpegCmd.Source (Join-Path $ffmpegDir "ffmpeg.exe")
     Copy-Item $ffprobeCmd.Source (Join-Path $ffmpegDir "ffprobe.exe")
     Write-Host "Bundled FFmpeg from PATH: $($ffmpegCmd.Source)"
-} elseif (Test-Path "ffmpeg/bin/ffmpeg.exe" -and Test-Path "ffmpeg/bin/ffprobe.exe") {
+} elseif ((Test-Path "ffmpeg/bin/ffmpeg.exe") -and (Test-Path "ffmpeg/bin/ffprobe.exe")) {
     Copy-Item "ffmpeg/bin/ffmpeg.exe" (Join-Path $ffmpegDir "ffmpeg.exe")
     Copy-Item "ffmpeg/bin/ffprobe.exe" (Join-Path $ffmpegDir "ffprobe.exe")
-} elseif (Test-Path "ffmpeg.exe" -and Test-Path "ffprobe.exe") {
+} elseif ((Test-Path "ffmpeg.exe") -and (Test-Path "ffprobe.exe")) {
     Copy-Item "ffmpeg.exe" (Join-Path $ffmpegDir "ffmpeg.exe")
     Copy-Item "ffprobe.exe" (Join-Path $ffmpegDir "ffprobe.exe")
 } else {
@@ -132,12 +132,10 @@ $py = Join-Path $root "runtime/python.exe"
 & $py -c "from videotrans.util._dual_track import probe_dual_track, extract_dual_track_16k; print('dual-track portable import OK')"
 & $py -c "from videotrans.task.speech2text import SpeechToText; print('SpeechToText portable import OK')"
 
-$archive = Join-Path $OutputDir "pyVideoTrans-DualTrack-Windows-v4.14.7z"
-if (Get-Command 7z -ErrorAction SilentlyContinue) {
-    7z a -t7z -mx=5 -m0=lzma2 -ms=on $archive "$dest\*"
-    Write-Host "Build complete: $archive"
-} else {
-    $zip = Join-Path $OutputDir "pyVideoTrans-DualTrack-Windows-v4.14.zip"
-    Compress-Archive -Path "$dest\*" -DestinationPath $zip -CompressionLevel Optimal
-    Write-Host "Build complete: $zip"
-}
+Write-Host ""
+Write-Host "Build complete."
+Write-Host "Portable directory:"
+Write-Host "  $root"
+Write-Host ""
+Write-Host "Run:"
+Write-Host "  $root\pyVideoTrans-DualTrack.exe"
