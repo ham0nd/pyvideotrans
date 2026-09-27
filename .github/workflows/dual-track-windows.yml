@@ -65,7 +65,8 @@ jobs:
               main()
           '@ | Set-Content -Encoding UTF8 portable_launcher.py
 
-          uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon videotrans/styles/icon.ico --distpath launcher-dist --workpath launcher-build --specpath launcher-build
+          $icon = Join-Path $env:GITHUB_WORKSPACE "videotrans/styles/icon.ico"
+          uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon "$icon" --distpath launcher-dist --workpath launcher-build --specpath launcher-build
 
       - name: Assemble portable directory
         shell: pwsh
