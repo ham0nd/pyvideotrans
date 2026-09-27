@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - feature/dual-track-call
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
@@ -46,20 +50,35 @@ jobs:
         shell: pwsh
         run: |
           @'
+          import os
           import subprocess
           import sys
           from pathlib import Path
 
           def main():
               root = Path(sys.executable).resolve().parent
-              pythonw = root / ".venv" / "Scripts" / "pythonw.exe"
+              pythonw = root / "runtime" / "pythonw.exe"
               app = root / "sp.py"
+              site_packages = root / "site-packages"
+
               if not pythonw.exists():
-                  raise SystemExit(f"Missing portable Python: {pythonw}")
+                  raise SystemExit(f"Missing portable Python runtime: {pythonw}")
               if not app.exists():
                   raise SystemExit(f"Missing application entry: {app}")
+              if not site_packages.exists():
+                  raise SystemExit(f"Missing site-packages: {site_packages}")
+
+              env = os.environ.copy()
+              env["PYTHONPATH"] = str(site_packages)
+              env["PYTHONUTF8"] = "1"
               creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-              subprocess.Popen([str(pythonw), str(app)], cwd=str(root), creationflags=creationflags, close_fds=True)
+              subprocess.Popen(
+                  [str(pythonw), str(app)],
+                  cwd=str(root),
+                  env=env,
+                  creationflags=creationflags,
+                  close_fds=True,
+              )
 
           if __name__ == "__main__":
               main()
@@ -68,11 +87,12 @@ jobs:
           $icon = Join-Path $env:GITHUB_WORKSPACE "videotrans/styles/icon.ico"
           uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon "$icon" --distpath launcher-dist --workpath launcher-build --specpath launcher-build
 
-      - name: Assemble portable directory
+      - name: Assemble truly portable directory
         shell: pwsh
         run: |
           $dest = "portable/pyVideoTrans-DualTrack"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
           Copy-Item "launcher-dist/pyVideoTrans-DualTrack.exe" $dest
           Copy-Item "sp.py" $dest
           Copy-Item "cli.py" $dest
@@ -81,7 +101,17 @@ jobs:
           Copy-Item "uv.lock" $dest
           Copy-Item "videotrans" $dest -Recurse
           if (Test-Path "ffmpeg") { Copy-Item "ffmpeg" $dest -Recurse }
-          Copy-Item ".venv" "$dest/.venv" -Recurse
+
+          # A Windows venv is NOT relocatable because its python.exe redirects to
+          # the absolute base interpreter path. Bundle the managed CPython runtime
+          # itself, then keep third-party packages in a separate portable folder.
+          $basePrefix = uv run python -c "import sys; print(sys.base_prefix)"
+          $basePrefix = $basePrefix.Trim()
+          Write-Host "Bundling CPython runtime from: $basePrefix"
+          Copy-Item $basePrefix "$dest/runtime" -Recurse
+
+          New-Item -ItemType Directory -Force -Path "$dest/site-packages" | Out-Null
+          Copy-Item ".venv/Lib/site-packages/*" "$dest/site-packages" -Recurse -Force
 
           @'
           双轨通话魔改版
@@ -101,6 +131,19 @@ jobs:
           双轨模式会分别识别两路、按原时间戳合并，并输出 [我] / [对方]。
           '@ | Set-Content -Encoding UTF8 "$dest/双轨通话说明.txt"
 
+      - name: Portable runtime smoke test
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path "portable/pyVideoTrans-DualTrack").Path
+          $env:PYTHONPATH = Join-Path $root "site-packages"
+          $py = Join-Path $root "runtime/python.exe"
+
+          & $py -c "import sys; print(sys.executable); print(sys.prefix); print(sys.base_prefix)"
+          & $py -c "import PySide6; print('PySide6 portable import OK')"
+          & $py -c "from videotrans.task.taskcfg import TaskCfgSTT; c=TaskCfgSTT(dual_track_call=True, me_track=1); assert c.dual_track_call"
+          & $py -c "from videotrans.util._dual_track import probe_dual_track, extract_dual_track_16k; print('dual-track portable import OK')"
+          & $py -c "from videotrans.task.speech2text import SpeechToText; print('SpeechToText portable import OK')"
+
       - name: Package portable build
         shell: pwsh
         run: 7z a -t7z -mx=5 -m0=lzma2 -ms=on -v1800m pyVideoTrans-DualTrack-Windows-v4.14.7z .\portable\pyVideoTrans-DualTrack\*
@@ -108,7 +151,7 @@ jobs:
       - name: Upload portable build
         uses: actions/upload-artifact@v4
         with:
-          name: pyVideoTrans-DualTrack-Windows-v4.14
+          name: pyVideoTrans-DualTrack-Windows-v4.14-portable
           path: pyVideoTrans-DualTrack-Windows-v4.14.7z.*
           if-no-files-found: error
           compression-level: 0
