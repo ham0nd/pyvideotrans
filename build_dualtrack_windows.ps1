@@ -49,7 +49,8 @@ if __name__ == "__main__":
 Set-Content -Path portable_launcher.py -Value $launcher -Encoding UTF8
 
 Remove-Item launcher-dist, launcher-build, $OutputDir -Recurse -Force -ErrorAction SilentlyContinue
-uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon videotrans/styles/icon.ico --distpath launcher-dist --workpath launcher-build --specpath launcher-build
+$icon = (Resolve-Path "videotrans/styles/icon.ico").Path
+uv run pyinstaller portable_launcher.py --onefile --windowed --name pyVideoTrans-DualTrack --icon "$icon" --distpath launcher-dist --workpath launcher-build --specpath launcher-build
 
 $dest = Join-Path $OutputDir "pyVideoTrans-DualTrack"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
